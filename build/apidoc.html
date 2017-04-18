@@ -63,6 +63,15 @@
 
         <li>
 
+            <a class="apidocElementLiA" href="#apidoc.element.python-shell.python-shell">
+            function <span class="apidocSignatureSpan"></span>python-shell
+            <span class="apidocSignatureSpan">(script, options)</span>
+            </a>
+
+        </li>
+
+        <li>
+
             <a class="apidocElementLiA" href="#apidoc.element.python-shell.run">
             function <span class="apidocSignatureSpan">python-shell.</span>run
             <span class="apidocSignatureSpan">(script, options, callback)</span>
@@ -147,6 +156,105 @@
 
 <div class="apidocSectionDiv">
 <h1><a href="#apidoc.module.python-shell" id="apidoc.module.python-shell">module python-shell</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.python-shell.python-shell" id="apidoc.element.python-shell.python-shell">
+        function <span class="apidocSignatureSpan"></span>python-shell
+        <span class="apidocSignatureSpan">(script, options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">python-shell = function (script, options) {
+
+    function resolve(type, val) {
+        if (typeof val === &#x27;string&#x27;) {
+            // use a built-in function using its name
+            return PythonShell[type][val];
+        } else if (typeof val === &#x27;function&#x27;) {
+            // use a custom function
+            return val;
+        }
+    }
+
+    var self = this;
+    var errorData = &#x27;&#x27;;
+    EventEmitter.call(this);
+
+    options = extend({}, PythonShell.defaultOptions, options);
+    var pythonPath = options.pythonPath || &#x27;python&#x27;;
+    var pythonOptions = toArray(options.pythonOptions);
+    var scriptArgs = toArray(options.args);
+
+    this.script = path.join(options.scriptPath || &#x27;./&#x27;, script);
+    this.command = pythonOptions.concat(this.script, scriptArgs);
+    this.mode = options.mode || &#x27;text&#x27;;
+    this.formatter = resolve(&#x27;format&#x27;, options.formatter || this.mode);
+    this.parser = resolve(&#x27;parse&#x27;, options.parser || this.mode);
+    this.terminated = false;
+    this.childProcess = spawn(pythonPath, this.command, options);
+
+    [&#x27;stdout&#x27;, &#x27;stdin&#x27;, &#x27;stderr&#x27;].forEach(function (name) {
+        self[name] = self.childProcess[name];
+        self.parser &#x26;&#x26; self[name].setEncoding(options.encoding || &#x27;utf8&#x27;);
+    });
+
+    // parse incoming data on stdout
+    if (this.parser) {
+        this.stdout.on(&#x27;data&#x27;, PythonShell.prototype.receive.bind(this));
+    }
+
+    // listen to stderr and emit errors for incoming data
+    this.stderr.on(&#x27;data&#x27;, function (data) {
+        errorData += &#x27;&#x27;+data;
+    });
+
+    this.stderr.on(&#x27;end&#x27;, function(){
+        self.stderrHasEnded = true
+        terminateIfNeeded();
+    })
+
+    this.stdout.on(&#x27;end&#x27;, function(){
+        self.stdoutHasEnded = true
+        terminateIfNeeded();
+    })
+
+    this.childProcess.on(&#x27;exit&#x27;, function (code) {
+        self.exitCode = code;
+        terminateIfNeeded();
+    });
+
+    function terminateIfNeeded() {
+        if (!self.stderrHasEnded || !self.stdoutHasEnded || self.exitCode == null) {
+            return;
+        }
+        var err;
+        if (errorData || self.exitCode !== 0) {
+            if (errorData) {
+                err = self.parseError(errorData);
+            } else {
+                err = new Error(&#x27;process exited with code &#x27; + self.exitCode);
+            }
+            err = extend(err, {
+                executable: pythonPath,
+                options: pythonOptions.length ? pythonOptions : null,
+                script: self.script,
+                args: scriptArgs.length ? scriptArgs : null,
+                exitCode: self.exitCode
+            });
+            // do not emit error if only a callback is used
+            if (self.listeners(&#x27;error&#x27;).length || !self._endCallback) {
+                self.emit(&#x27;error&#x27;, err);
+            }
+        }
+        self.terminated = true;
+        self.emit(&#x27;close&#x27;);
+        self._endCallback &#x26;&#x26; self._endCallback(err);
+    }
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
 
 
     <h2>

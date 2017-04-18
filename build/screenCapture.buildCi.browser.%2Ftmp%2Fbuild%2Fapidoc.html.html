@@ -56,6 +56,15 @@
 
         <li>
 
+            <a class="apidocElementLiA" href="#apidoc.element.python-shell.python-shell">
+            function <span class="apidocSignatureSpan"></span>python-shell
+            <span class="apidocSignatureSpan">(script, options)</span>
+            </a>
+
+        </li>
+
+        <li>
+
             <a class="apidocElementLiA" href="#apidoc.element.python-shell.run">
             function <span class="apidocSignatureSpan">python-shell.</span>run
             <span class="apidocSignatureSpan">(script, options, callback)</span>
@@ -140,6 +149,105 @@
 
 <div class="apidocSectionDiv">
 <h1><a href="#apidoc.module.python-shell" id="apidoc.module.python-shell">module python-shell</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.python-shell.python-shell" id="apidoc.element.python-shell.python-shell">
+        function <span class="apidocSignatureSpan"></span>python-shell
+        <span class="apidocSignatureSpan">(script, options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">python-shell = function (script, options) {
+
+    function resolve(type, val) {
+        if (typeof val === 'string') {
+            // use a built-in function using its name
+            return PythonShell[type][val];
+        } else if (typeof val === 'function') {
+            // use a custom function
+            return val;
+        }
+    }
+
+    var self = this;
+    var errorData = '';
+    EventEmitter.call(this);
+
+    options = extend({}, PythonShell.defaultOptions, options);
+    var pythonPath = options.pythonPath || 'python';
+    var pythonOptions = toArray(options.pythonOptions);
+    var scriptArgs = toArray(options.args);
+
+    this.script = path.join(options.scriptPath || './', script);
+    this.command = pythonOptions.concat(this.script, scriptArgs);
+    this.mode = options.mode || 'text';
+    this.formatter = resolve('format', options.formatter || this.mode);
+    this.parser = resolve('parse', options.parser || this.mode);
+    this.terminated = false;
+    this.childProcess = spawn(pythonPath, this.command, options);
+
+    ['stdout', 'stdin', 'stderr'].forEach(function (name) {
+        self[name] = self.childProcess[name];
+        self.parser &amp;&amp; self[name].setEncoding(options.encoding || 'utf8');
+    });
+
+    // parse incoming data on stdout
+    if (this.parser) {
+        this.stdout.on('data', PythonShell.prototype.receive.bind(this));
+    }
+
+    // listen to stderr and emit errors for incoming data
+    this.stderr.on('data', function (data) {
+        errorData += ''+data;
+    });
+
+    this.stderr.on('end', function(){
+        self.stderrHasEnded = true
+        terminateIfNeeded();
+    })
+
+    this.stdout.on('end', function(){
+        self.stdoutHasEnded = true
+        terminateIfNeeded();
+    })
+
+    this.childProcess.on('exit', function (code) {
+        self.exitCode = code;
+        terminateIfNeeded();
+    });
+
+    function terminateIfNeeded() {
+        if (!self.stderrHasEnded || !self.stdoutHasEnded || self.exitCode == null) {
+            return;
+        }
+        var err;
+        if (errorData || self.exitCode !== 0) {
+            if (errorData) {
+                err = self.parseError(errorData);
+            } else {
+                err = new Error('process exited with code ' + self.exitCode);
+            }
+            err = extend(err, {
+                executable: pythonPath,
+                options: pythonOptions.length ? pythonOptions : null,
+                script: self.script,
+                args: scriptArgs.length ? scriptArgs : null,
+                exitCode: self.exitCode
+            });
+            // do not emit error if only a callback is used
+            if (self.listeners('error').length || !self._endCallback) {
+                self.emit('error', err);
+            }
+        }
+        self.terminated = true;
+        self.emit('close');
+        self._endCallback &amp;&amp; self._endCallback(err);
+    }
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
 
 
     <h2>
